@@ -2,6 +2,7 @@ import time
 import board
 import busio
 import trill
+import updatetype
 
 print("Starting Trill Bars")
 
@@ -13,14 +14,6 @@ def millis():
 
 TOUCHLENGTH = 150   #length when a touch is recognized
 TAPLENGTH = 40      #minimum length for a tap
-
-NoTouch = 0
-Primary = 1
-SingleTap = 2
-Secondary = 3
-BankSwitch = 4
-ModeSwitch = 5
-DoubleTap = 6
 
 class Taps:    
     def __init__(self):
@@ -46,7 +39,7 @@ class Trill_FaderXT:
     def __init__(self, i2c, address, fadernumber):
         #print("Initializing:", address)
         self.trillbar = trill.Bar(i2c, address)
-        #self.trillbar.set_noise_threshold(250)
+        self.trillbar.set_noise_threshold(250)
         #self.trillbar.set_scan_settings(0, 16)
 
         self.raw = 0            #raw value read from bar
@@ -56,7 +49,7 @@ class Trill_FaderXT:
         self.toucheslastread = 0    #stored touches from last reading     
         self.tapvalue = 0           #value of last tap
 
-        self.tstate = NoTouch                                       #state of fader to be signalled
+        self.tstate = updatetype.NOUPDATE                           #state of fader to be signalled
         self.touch_start = 0                                        #when did touch start   
         self.touch_length = 0                                       #length of current touch
         self.taps = Taps()
@@ -74,7 +67,7 @@ class Trill_FaderXT:
             return None
 
         if(self.touchesread == 0):                                              #no touch has been found
-            self.tstate = NoTouch;                                          #reset state
+            self.tstate = updatetype.NOUPDATE                                   #reset state
             if(self.touch_start > 0):                                       #in last call there has been a touch
                 #print("Touch End detected")
                 self.touch_length = millis() - self.touch_start             #calculate touch length
@@ -83,11 +76,15 @@ class Trill_FaderXT:
                     #print("New Tap detected") 
                     self.taps.add();                                               #register tap
                     if(self.taps.number() >= 2):                                   #double tap found
-                        self.tstate = DoubleTap
+                        self.tstate = updatetype.DOUBLETAP
                         self.taps.reset()
-                        #print("Double Tap detected") 
+                        if(self.tapvalue > 1600):
+                            self.tstate = updatetype.SWITCHDOWN                                                                     #For tap only output 0 or 127 
+                        else:
+                            self.tstate = updatetype.SWITCHUP
+                        print("Double Tap detected", self.fadernumber) 
                     else:                                                          #single tap found
-                        self.tstate = SingleTap
+                        self.tstate = updatetype.SINGLETAP
             self.touch_start = 0
             
         elif(self.touchesread > 0 and self.touch_start == 0):                          #might be a new touch
@@ -98,20 +95,21 @@ class Trill_FaderXT:
             self.touch_start = 0
         elif(self.touchesread > 0 and (millis() - self.touch_start) >= TOUCHLENGTH):   #touch longer than delay, so signal it to caller
             #print("New Slide detected")
-            if(self.tstate == NoTouch):                                            #no touch has been signalled before
+            if(self.tstate == updatetype.NOUPDATE):                                            #no touch has been signalled before
                 if self.touchesread == 1:
-                    self.tstate = Primary
+                    self.tstate = updatetype.PRIMARY
                 elif self.touchesread == 2:
                     if((millis() - self.touch_start) >= 2*TOUCHLENGTH):            #2 finger slide should wait longer before signalling
-                        self.tstate = Secondary
+                        self.tstate = updatetype.SECONDARY
                         #print("New Sec Slide detected")
                 elif self.touchesread == 3:
                     if((millis() - self.touch_start) >= 2*TOUCHLENGTH):            #3 finger slide should wait longer before signalling
-                        self.tstate = BankSwitch
+                        self.tstate = updatetype.BANKSWITCH
+                        self.raw = (self.trillbar.vertical_touches[0].location  + self.trillbar.vertical_touches[1].location  + self.trillbar.vertical_touches[2].location ) / 3
                         self.touch_wait = True
                 elif self.touchesread == 4:
                     if((millis() - self.touch_start) >= 2*TOUCHLENGTH):            #4 finger slide should wait longer before signalling
-                        self.tstate = ModeSwitch
+                        self.tstate = updatetype.MODESWITCH
                         self.touch_wait = True
                 else:
                     pass
@@ -119,27 +117,29 @@ class Trill_FaderXT:
 
 
     def get_value(self):
-        if self.tstate == Primary:
+        if self.tstate == updatetype.PRIMARY:
             self.raw = self.trillbar.vertical_touches[0].location                                                                 #read touch value as raw data
             self.constrained = (3100 - self.raw)/23                                                                           #calculate midi value
             self.readval = (int)(min(max(self.constrained, 0), 127))
-        elif self.tstate == Secondary:
+        elif self.tstate == updatetype.SECONDARY:
                 if self.trillbar.number_of_vertical_touches() == 2:
                     self.raw = (self.trillbar.vertical_touches[0].location  + self.trillbar.vertical_touches[1].location ) / 2                   #calculate average of two fingers
                     self.constrained = (3100 - self.raw)/23
                     self.readval = (int)(min(max(self.constrained, 0), 127))
-        elif self.tstate == BankSwitch:
-                self.raw = (self.trillbar.vertical_touches[0].location  + self.trillbar.vertical_touches[1].location  + self.trillbar.vertical_touches[2].location ) / 3      #calculate average of all three fingers
+        elif self.tstate == updatetype.BANKSWITCH:
+                #self.raw = (self.trillbar.vertical_touches[0].location  + self.trillbar.vertical_touches[1].location  + self.trillbar.vertical_touches[2].location ) / 3      #calculate average of all three fingers
                 if(self.raw > 1600):
                     self.readval = 0                                                                                                             #only output 0 or 1 if upper or lower
                 else:
                     self.readval = 1
-        elif self.tstate == SingleTap or self.tstate == DoubleTap:
+        elif self.tstate == updatetype.SINGLETAP:
+            pass
+        elif self.tstate == updatetype.DOUBLETAP:
             if(self.tapvalue > 1600):
-                self.readval = 0                                                                     #For tap only output 0 or 127 
+                self.tstate = updatetype.SWITCHDOWN                                                                     #For tap only output 0 or 127 
             else:
-                self.readval = 1
-        elif self.tstate == ModeSwitch:                                                              #no value for modeswitch
+                self.tstate = updatetype.SWITCHUP
+        elif self.tstate == updatetype.MODESWITCH:                                                                      #no value for modeswitch
             self.readval = 0
         else:
             pass

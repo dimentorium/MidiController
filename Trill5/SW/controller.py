@@ -1,4 +1,5 @@
 import colors
+import updatetype
 
 MODE_CC = 0
 MODE_FADER = 1
@@ -6,11 +7,6 @@ MODE_FADER = 1
 FADERSTATE_NORMAL = 0
 FADERSTATE_SOLO = 1
 FADERSTATE_MUTE = 2
-
-UPDATETYPE_PRIMARY = 0
-UPDATETYPE_SECONDARY = 1
-UPDATETYPE_SWITCHUP = 2
-UPDATETYPE_SWITCHDOWN = 3
 
 ___faders = []
 ___mode = MODE_CC
@@ -32,7 +28,7 @@ class simplefader:
             self.value = value
             self.newstateavailable = True
 
-    def update(self, value, updatetype):
+    def update(self, value, update_type):
         self.value = value
         self.newstateavailable = True
 
@@ -74,20 +70,20 @@ class extfader(simplefader):
             else:
                 pass
 
-    def update(self, value, updatetype):
+    def update(self, value, update_type):
         self.newstateavailable = True
-        if updatetype == UPDATETYPE_PRIMARY:
+        if update_type == updatetype.PRIMARY:
             self.value = value
             self.secondaryavailable = False
-        elif updatetype == UPDATETYPE_SECONDARY:
+        elif update_type == updatetype.SECONDARY:
             self.secvalue = value
             self.secondaryavailable = True
-        elif updatetype == UPDATETYPE_SWITCHUP:
+        elif update_type == updatetype.SWITCHUP:
             if self.fadermode != FADERSTATE_SOLO:
                 self.fadermode = FADERSTATE_SOLO
             else:
                 self.fadermode = FADERSTATE_NORMAL
-        elif updatetype == UPDATETYPE_SWITCHDOWN:
+        elif update_type == updatetype.SWITCHDOWN:
             if self.fadermode != FADERSTATE_MUTE:
                 self.fadermode = FADERSTATE_MUTE
             else:
@@ -130,6 +126,12 @@ def get_fader(fadernumber):
     global ___faders, ___mode, ___bank
     return ___faders[(___mode * 4) + (___bank * 4) + fadernumber]
 
-def set_fader(fadernumber, value, updatetype):
+def set_fader(fadernumber, value, update_type):
     global ___faders, ___mode, ___bank
-    ___faders[(___mode * 4) + (___bank * 4) + fadernumber].update(value, updatetype)
+    selectedfader = ___faders[(___mode * 4) + (___bank * 4) + fadernumber]
+    if update_type == updatetype.BANKSWITCH:
+        switch_bank((fadernumber * 2) + value)
+    elif update_type == updatetype.MODESWITCH:
+        switch_mode(fadernumber)
+    else:
+        selectedfader.update(value, update_type)
