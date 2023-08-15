@@ -25,12 +25,14 @@ class simplefader:
 
     def update_cc(self, channel, cc, value):
         if self.channel == channel and self.fadercc == cc:
-            self.value = value
-            self.newstateavailable = True
+            if value != self.value:
+                self.value = value
+                self.newstateavailable = True
 
     def update(self, value, update_type):
-        self.value = value
-        self.newstateavailable = True
+        if value != self.value:
+            self.value = value
+            self.newstateavailable = True
 
 class extfader(simplefader):
     def __init__(self, cc1, cc2, ccup, ccdown) -> None:
@@ -50,19 +52,24 @@ class extfader(simplefader):
 
     def update_cc(self, channel, cc, value):
         if self.channel == channel:
-            self.newstateavailable = True
             if self.fadercc == cc:
-                self.value = value
-                self.secondaryavailable = False
+                if value != self.value:
+                    self.newstateavailable = True
+                    self.value = value
+                    self.secondaryavailable = False
             elif self.secfadercc == cc:
-                self.secvalue = value
-                self.secondaryavailable = True
+                if value != self.secvalue:
+                    self.secvalue = value
+                    self.newstateavailable = True
+                    self.secondaryavailable = True
             elif self.switchupcc == cc:
+                self.newstateavailable = True
                 if value != 0:
                     self.fadermode = FADERSTATE_SOLO
                 else:
                     self.fadermode = FADERSTATE_NORMAL
             elif self.switchdowncc == cc:
+                self.newstateavailable = True
                 if value != 0:
                     self.fadermode = FADERSTATE_MUTE
                 else:
@@ -71,19 +78,24 @@ class extfader(simplefader):
                 pass
 
     def update(self, value, update_type):
-        self.newstateavailable = True
         if update_type == updatetype.PRIMARY:
-            self.value = value
-            self.secondaryavailable = False
+            if value != self.value:
+                self.newstateavailable = True
+                self.value = value
+                self.secondaryavailable = False
         elif update_type == updatetype.SECONDARY:
-            self.secvalue = value
-            self.secondaryavailable = True
+            if value != self.secvalue:
+                self.secvalue = value
+                self.newstateavailable = True
+                self.secondaryavailable = True
         elif update_type == updatetype.SWITCHUP:
+            self.newstateavailable = True
             if self.fadermode != FADERSTATE_SOLO:
                 self.fadermode = FADERSTATE_SOLO
             else:
                 self.fadermode = FADERSTATE_NORMAL
         elif update_type == updatetype.SWITCHDOWN:
+            self.newstateavailable = True
             if self.fadermode != FADERSTATE_MUTE:
                 self.fadermode = FADERSTATE_MUTE
             else:
