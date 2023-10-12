@@ -16,6 +16,7 @@ midi.init()
 
 while True:
     starttime = time.monotonic()        #startime for calculating final wait
+    midi.receive_cc()
 
     #read hardware values from trill bars and update controller
     for fader in bars.faders:

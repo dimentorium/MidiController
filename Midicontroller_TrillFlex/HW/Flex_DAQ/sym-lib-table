@@ -1,0 +1,3 @@
+(sym_lib_table
+  (lib (name Flex_DAQ-rescue)(type Legacy)(uri ${KIPRJMOD}/Flex_DAQ-rescue.lib)(options "")(descr ""))
+)

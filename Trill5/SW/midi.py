@@ -7,7 +7,7 @@ usb_midi = adafruit_midi.MIDI(
     midi_in=usb_midi.ports[0],
     midi_out=usb_midi.ports[1], 
     in_channel=(0, 5),
-    out_channel=USB_MIDI_channel - 1
+    out_channel=(USB_MIDI_channel - 1)
 )
 
 def init():
@@ -21,5 +21,8 @@ def send_cc(ccnumber, value, midichannel):
 def receive_cc():
     global usb_midi
     received = usb_midi.receive()
+    if received is not None:
+        print(received.data)
     if isinstance(received, ControlChange):
+        print("CC Received")
         return received
