@@ -11,13 +11,17 @@ Adafruit_NeoTrellis trellis;
 //define a callback for key presses
 TrellisCallback blink(keyEvent evt){
   // Check is the pad pressed?
+  int converted = (evt.bit.NUM / 4) * 4 + (3 - (evt.bit.NUM % 4));
   if (evt.bit.EDGE == SEESAW_KEYPAD_EDGE_RISING) {
     trellis.pixels.setPixelColor(evt.bit.NUM, Wheel(map(evt.bit.NUM, 0, trellis.pixels.numPixels(), 0, 255))); //on rising
-    controlChange(0, 32 + evt.bit.NUM, 127);
+    Serial.println(evt.bit.NUM);
+    
+    Serial.println(converted);
+    controlChange(0, 36 + converted, 127);
   } else if (evt.bit.EDGE == SEESAW_KEYPAD_EDGE_FALLING) {
   // or is the pad released?
     trellis.pixels.setPixelColor(evt.bit.NUM, Wheel_off(map(evt.bit.NUM, 0, trellis.pixels.numPixels(), 0, 255))); //off falling
-    controlChange(0, 32 + evt.bit.NUM, 0);
+    controlChange(0, 36 + converted, 0);
   }
 
   // Turn on/off the neopixels!
@@ -27,7 +31,11 @@ TrellisCallback blink(keyEvent evt){
 }
 
 void controlChange(byte channel, byte control, byte value) {
-  midiEventPacket_t event = {0x0B, 0xB0 | channel, control, value};
+  //midiEventPacket_t event = {0x0B, 0xB0 | channel, control, value};
+  midiEventPacket_t event = {0x09, 0x90 | channel, control, value};     //Note on
+  if(value == 0) {
+    event = {0x08, 0x80 | channel, control, 127};     //Note on
+  }
   MidiUSB.sendMIDI(event);
   MidiUSB.flush();
 }
